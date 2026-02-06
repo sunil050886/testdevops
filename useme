@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+
+    // Ensure the GitLab connection name matches the one configured in Jenkins Global settings
+    options {
+        gitLabConnection('your-gitlab-connection-name')
+    }
+
+    // Configure triggers to automatically build on push or merge requests
+    triggers {
+        gitlab(triggerOnPush: true, triggerOnMergeRequest: true, branchFilterType: 'All')
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    // Update the status on GitLab to 'running'
+                    updateGitlabCommitStatus name: 'build', state: 'running'
+                }
+                // Use Maven to clean and install the project, skipping tests initially
+                sh 'mvn clean install -DskipTests'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                // Use Maven to run tests
+                sh 'mvn test'
+            }
+        }
+    }
+
+    // Post-build actions to report the final status back to GitLab
+    post {
+        success {
+            updateGitlabCommitStatus name: 'build', state: 'success'
+        }
+        failure {
+            updateGitlabCommitStatus name: 'build', state: 'failed'
+        }
+        aborted {
+            updateGitlabCommitStatus name: 'build', state: 'canceled'
+        }
+    }
+}
